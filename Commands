@@ -1,0 +1,201 @@
+Microservices 
+
+
+IAM User - eks-user
+Password - Boni@499
+--------------------------------
+
+
+eksctl utils associate-iam-oidc-provider \
+    --region ap-south-1 \
+    --cluster EKS-2 \
+    --approve
+
+eksctl create nodegroup --cluster=EKS-2 \
+                       --region=ap-south-1 \
+                       --name=node2 \
+                       --node-type=t3.medium \
+                       --nodes=3 \
+                       --nodes-min=2 \
+                       --nodes-max=4 \
+                       --node-volume-size=20 \
+                       --ssh-access \
+                       --ssh-public-key=DevOps \
+                       --managed \
+                       --asg-access \
+                       --external-dns-access \
+                       --full-ecr-access \
+                       --appmesh-access \
+                       --alb-ingress-access
+
+
+-------------------------
+
+#Install JDK 17
+
+sudo apt install openjdk-17-jre-headless
+
+install jenkins 
+
+vi jen.sh 
+
+sudo wget -O /usr/share/keyrings/jenkins-keyring.asc \
+  https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+echo "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc]" \
+  https://pkg.jenkins.io/debian-stable binary/ | sudo tee \
+  /etc/apt/sources.list.d/jenkins.list > /dev/null
+sudo apt-get update
+sudo apt-get install jenkins
+
+
+-------------------------------
+
+Install docker 
+
+
+# to give permission to other user 
+sudo chmod 666 /var/run/docker.sock
+
+-----------------------------------
+plugins in jenkins 
+
+Jenkins creds :
+bhujanga
+Boni@499
+
+http://65.2.126.73:8080/
+
+docker 
+kubernetes
+
+
+------------------
+Tools Configure 
+Docker 
+
+
+
+get webhook integration :
+
+http://65.2.126.73:8080/multibranch-webhook-trigger/invoke?token=bhujanga
+--------------------------
+
+creating service account and Role setup and bind with service account 
+
+vi svc.yml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jenkins
+  namespace: webapps
+
+
+kubectl create namespace webapps
+
+kubectl apply -f svc.yml
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: app-role
+  namespace: webapps
+rules:
+  - apiGroups:
+        - ""
+        - apps
+        - autoscaling
+        - batch
+        - extensions
+        - policy
+        - rbac.authorization.k8s.io
+    resources:
+      - pods
+      - componentstatuses
+      - configmaps
+      - daemonsets
+      - deployments
+      - events
+      - endpoints
+      - horizontalpodautoscalers
+      - ingress
+      - jobs
+      - limitranges
+      - namespaces
+      - nodes
+      - pods
+      - persistentvolumes
+      - persistentvolumeclaims
+      - resourcequotas
+      - replicasets
+      - replicationcontrollers
+      - serviceaccounts
+      - services
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+kubectl apply -f role.yml
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: app-rolebinding
+  namespace: webapps 
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: app-role 
+subjects:
+- namespace: webapps 
+  kind: ServiceAccount
+  name: jenkins 
+
+kubectl apply -f bind.yml
+
+# create token for service account 
+vi sec.yml
+
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/service-account-token
+metadata:
+  name: mysecretname
+  annotations:
+    kubernetes.io/service-account.name: myserviceaccount
+
+kubectl apply -f sec.yml -n webapps
+
+kubectl get all -n webapps
+
+kubectl describe secret mysecretname -n webapps
+
+eyJhbGciOiJSUzI1NiIsImtpZCI6InRsV1Rzb1I0Um1UeHV3WllEb3Yxc3Ezdy1saEI2N2tBQzh3WDktZ0tLbmsifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJ3ZWJhcHBzIiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9zZWNyZXQubmFtZSI6Im15c2VjcmV0bmFtZSIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50Lm5hbWUiOiJqZW5raW5zIiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9zZXJ2aWNlLWFjY291bnQudWlkIjoiNzk0YWY3MDYtMGZjYy00YmJhLWJmNDMtNzU1NTBiYmM0NjFmIiwic3ViIjoic3lzdGVtOnNlcnZpY2VhY2NvdW50OndlYmFwcHM6amVua2lucyJ9.aTH-xF9sGNbuhNvg0BcS__ILhG7ngRSWj1fSHrUW2I8HR5W2qgtyxEbG0l9hzsKQoBx9eJN3cev2-55qnuEktU2MqKFApjI_hbQcZOtnLsumYy939YMWmF7F7e045MnGFV0Dw-pSP1OtbbyaHtRzKvzNapp78mx_XAUcjYWQOkgXY7_2O6J1vBgE9DST7Qgv_8JauUYWpdV9eAwMNkCi3_xCLs6GY4hz7OCiI0lXHUjYLskOXK9WDFopxa1EWTVnvU_2LABWatKfSzqwFRPRXqMJYjmi88quiLriTL32sT6cTn3TB--eXZ3Icmrk-NIglbLrm6oRkhmj4G-Qb7aWsg
+
+# Main Branch jenkins file 
+
+
+pipeline {
+    agent any
+
+    stages {
+        stage('Deploy To Kubernetes') {
+            steps {
+                withKubeCredentials(kubectlCredentials: [[caCertificate: '', clusterName: 'EKS-2', contextName: '', credentialsId: 'k8-token', namespace: 'webapps', serverUrl: 'https://9F39F577334FF23706994135261985F2.gr7.ap-south-1.eks.amazonaws.com']]) {
+                    sh "kubectl apply -f deployment-service.yml"
+                    
+                }
+            }
+        }
+        
+        stage('verify Deployment') {
+            steps {
+                withKubeCredentials(kubectlCredentials: [[caCertificate: '', clusterName: 'EKS-2', contextName: '', credentialsId: 'k8-token', namespace: 'webapps', serverUrl: 'https://9F39F577334FF23706994135261985F2.gr7.ap-south-1.eks.amazonaws.com']]) {
+                    sh "kubectl get svc -n webapps"
+                }
+            }
+        }
+    }
+}
+
+
+
+
+
